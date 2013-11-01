@@ -6,6 +6,7 @@
   (:use korma.db korma.core)
   (:use [clojure.java.shell :as sh])
   (:use [clojure.java.io :only (as-file copy)])
+  (:use [clojure.string :only (split)])
   (:gen-class :main true))
 
 (import '(java.io BufferedReader InputStreamReader)) 
@@ -31,46 +32,22 @@
 (defn strip [coll chars]
   (apply str (remove #((set chars) %) coll)))
 
-(defn replaceComposerJson [folder]
-	(spit (str folder "/composer.json") 
-		"{
-			\"name\": \"laravel/laravel\",
-			\"description\": \"The Laravel Framework.\",
-			\"keywords\": [\"framework\", \"laravel\"],
-			\"license\": \"MIT\",
-			\"require\": {
-				\"laravel/framework\": \"4.0.*\"
-			},
-			\"autoload\": {
-				\"classmap\": [
-					\"app/commands\",
-					\"app/controllers\",
-					\"app/models\",
-					\"app/database/migrations\",
-					\"app/database/seeds\",
-					\"app/tests/TestCase.php\"
-				]
-			},
-			\"config\": {
-				\"preferred-install\": \"dist\"
-			},
-			\"minimum-stability\": \"dev\"
-		}"))
+(defn tidify [name config]
+	(cmdout (cmd ["git" "remote" "add" "tide" (str "git@" (:server config) ":" name)] (str "./" name "/www")))
+	(cmderr (cmd ["git" "tide" "dokku" "master"] (str "./" name "/www"))))
+
+(defn gitInitialize [name]
+	(cmdout (cmd ["git" "init"] (str "./" name "/www")))
+	(cmdout (cmd ["git" "add" "."] (str "./" name "/www")))
+	(cmdout (cmd ["git" "commit" "-am" "Initial Commit - courtesy of Tide"] (str "./" name "/www"))))
 
 (defn newProject [name config]
 	(println "Cloning base box")
 	(git-clone-full "https://github.com/bryannielsen/Laravel4-Vagrant.git" name)
 	(println "Bringing up base box")
 	(cmdout (cmd ["vagrant" "up"] (str "./" name)))
-	(cmdout (cmd ["git" "init"] (str "./" name "/www")))
-	(replaceComposerJson (str "./" name "/www"))
-	; (cmdout (cmd ["curl" "https://raw.github.com/laravel/laravel/master/.gitignore"] (str "./" name "/www")))
-	(spit (str "./" name "/www/.env") "BUILDPACK_URL=https://github.com/SegFaultx64/heroku-buildpack-php.git
-")
-	(cmdout (cmd ["git" "add" "."] (str "./" name "/www")))
-	(cmdout (cmd ["git" "commit" "-am" "Initial Commit"] (str "./" name "/www")))
-	(cmdout (cmd ["git" "remote" "add" "dokku" (str "git@" (:server config) ":" name)] (str "./" name "/www")))
-	(cmderr (cmd ["git" "push" "dokku" "master"] (str "./" name "/www"))))
+	(gitInitialize name)
+	(tidify name config))
 
 (defn getDb [user password host port]
 	(def db
@@ -196,32 +173,36 @@
 			(slurp (str home "/.tide"))))
 		(yaml/parse-string
 			(slurp (str home "/.tide")))]
-		(System/exit 0)))
+		((println "You need to define a ~/.tide")
+			(System/exit 0))))
 	
 
 (defn what? []
-	(println "Project:")
-	(println "createproject")
+	(println "project")
+	(println "\t\tcreate")
+	(println "\t\ttidify")
+	(println "\t\tgitinit")
 	(println "")
-	(println "Database:")
-	(println "listdbs")
-	(println "setupdb")
-	(println "deletedb")
-	(println "deleteuser")
+	(println "db")
+	(println "\t\tlist")
+	(println "\t\tsetup")
+	(println "\t\tdelete")
+	(println "\t\tdelete user")
 	(println "")
-	(println "Other:")
 	(println "done"))
 
 (defn coreLoop [dbs config]
 	(let [db (nth dbs 0)
 		pgdb (nth dbs 1)]
 	(println "")
-	(case (ask "What do you want to do?") 
-		"createproject" (newProject (ask "Project Name?") config)
-		"listdbs" (doDbList pgdb)
-		"setupdb" (doDbSetup db)
-		"deletedb" (doDbDelete db)
-		"deleteuser" (doUserDelete db)
+	(case (split (ask "What do you want to do?") #"\s+")
+		["project" "create"] (newProject (ask "Project Name?") config)
+		["project" "tidify"] (tidify (ask "Project Name?") config)
+		["project" "gitinit"] (gitInitialize (ask "Project Name?"))
+		["db" "list"] (doDbList pgdb)
+		["db" "setup"] (doDbSetup db)
+		["db" "delete"] (doDbDelete db)
+		["db" "delete" "user"] (doUserDelete db)
 		"done" (doDone)
 		"exit" (doDone)
 		(what?)
