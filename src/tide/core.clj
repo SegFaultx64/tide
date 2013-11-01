@@ -41,9 +41,21 @@
 	(cmdout (cmd ["git" "add" "."] (str "./" name "/www")))
 	(cmdout (cmd ["git" "commit" "-am" "Initial Commit - courtesy of Tide"] (str "./" name "/www"))))
 
+(defn clone [name]
+	(let [l4v (str (System/getProperty "user.home") "/.tidefiles/l4v")]
+		(println "Fetching / updating basebox")
+		(cmdout (cmd ["git" "clone" "https://github.com/bryannielsen/Laravel4-Vagrant.git" l4v "/.tidefiles/l4v"] (str "./")))
+		(cmdout (cmd ["git" "pull" "origin" "master"] l4v))
+		; (if (not (.exists (as-file l4v)))
+		; 	((println "Getting basebox")
+		; 		(cmdout (cmd ["git" "clone" "https://github.com/bryannielsen/Laravel4-Vagrant.git" l4v "/.tidefiles/l4v"] (str "./"))))
+		; 	((println "Updating basebox")
+		; 		(cmd ["git" "pull" "origin" "master"] l4v) 0))
+		(println "Cloning base box")
+		(cmdout (cmd ["git" "clone" "--no-hardlinks" l4v (str name)] (str "./")))))
+
 (defn newProject [name config]
-	(println "Cloning base box")
-	(git-clone-full "https://github.com/bryannielsen/Laravel4-Vagrant.git" name)
+	(clone name)
 	(println "Bringing up base box")
 	(cmdout (cmd ["vagrant" "up"] (str "./" name)))
 	(gitInitialize name)
@@ -141,7 +153,7 @@
 	 		(fields [:datname :name]))]
 			(println (:name name))))
 
-(defn doDone []
+(defn doDone [options]
 	(println "Bye!")
 	(System/exit 0))
 
@@ -175,9 +187,35 @@
 			(slurp (str home "/.tide")))]
 		((println "You need to define a ~/.tide")
 			(System/exit 0))))
-	
 
-(defn what? []
+(defn project? []
+	(println "create")
+	(println "tidify")
+	(println "gitinit"))
+
+(defn db? []
+	(println "list")
+	(println "setup")
+	(println "delete")
+	(println "delete user"))
+
+(defn doProject [options config]
+	(case options
+		["clone"] (clone (ask "Project Name?"))
+		["create"] (newProject (ask "Project Name?") config)
+		["tidify"] (tidify (ask "Project Name?") config)
+		["gitinit"] (gitInitialize (ask "Project Name?"))
+		(project?)))
+
+(defn doDb [options db pgdb]
+	(case options
+		["list"] (doDbList pgdb)
+		["setup"] (doDbSetup db)
+		["delete"] (doDbDelete db)
+		["delete" "user"] (doUserDelete db)
+		(db?)))
+
+(defn all? []
 	(println "project")
 	(println "\t\tcreate")
 	(println "\t\ttidify")
@@ -195,19 +233,14 @@
 	(let [db (nth dbs 0)
 		pgdb (nth dbs 1)]
 	(println "")
-	(case (split (ask "What do you want to do?") #"\s+")
-		["project" "create"] (newProject (ask "Project Name?") config)
-		["project" "tidify"] (tidify (ask "Project Name?") config)
-		["project" "gitinit"] (gitInitialize (ask "Project Name?"))
-		["db" "list"] (doDbList pgdb)
-		["db" "setup"] (doDbSetup db)
-		["db" "delete"] (doDbDelete db)
-		["db" "delete" "user"] (doUserDelete db)
-		"done" (doDone)
-		"exit" (doDone)
-		(what?)
-		)
-	(coreLoop dbs config)))
+	(let [input (split (ask "What do you want to do?") #"\s+")]
+	(case (first input)
+		"project" (doProject (rest input) config)
+		"db" (doDb (rest input) db pgdb)
+		"done" (doDone (rest input))
+		"exit" (doDone (rest input))
+		(all?))
+	(coreLoop dbs config))))
 
 (defn -main []
 	(clearScreen)
