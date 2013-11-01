@@ -1,0 +1,3 @@
+#! /bin/bash
+
+java -jar /usr/local/bin/tide-0.1.0-SNAPSHOT-standalone.jar
