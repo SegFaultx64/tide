@@ -11,5 +11,6 @@
                             javax.jms/jms
                             com.sun.jdmk/jmxtools
                             com.sun.jmx/jmxri]]
-                 [clj-jgit "0.6.1"]]
+                 [clj-jgit "0.6.1"]
+                 [clj-ssh "0.5.6"]]
   :main tide.core)
